@@ -8,22 +8,22 @@ pathwidth = 1
 shelfwidth = 1
 width = pathwidth +shelfwidth
 itemfile = 'warehouse-grid.csv'
-
 itemdict = {}
 orderdict = {}
-
 startingPoint = (0,0)
 endPoint = (0,0)
-orderfile = ''
-outputFile = ''
+orderfile = "warehouse-orders-v01.csv"
+#orderfile = "21.csv"
+outputFile = "output.txt"
 userPickedItem = []
-
+algs = "b"
 def init():
     global startingPoint
     global endPoint
     global orderfile
     global outputFile
     global userPickedItem
+    global algs
     startingPoint = make_tuple(raw_input("Hello User, where is your worker? input like this: (1,1) \n"))
     endPoint = make_tuple(raw_input("What is your worker's end location? input like this: (1,1) \n"))
     orderInput = raw_input("Do you want to specify filename to import an list of orders? (Y or N) \n")
@@ -33,6 +33,10 @@ def init():
         orders = raw_input("Hello User, what items would you like to pick? split numbers with comma and do not use space\n")
         userPickedItem = map(lambda x: int(x), orders.split(','))
     else:
+        print "invalid input"
+        sys.exit()
+    algs = raw_input("Which algorithm do you want to use? G (greedy algorithm) or B (branch and bound)\n")
+    if algs!="g" and algs!="G" and algs !="b" and algs!="B":
         print "invalid input"
         sys.exit()
     outputFile = raw_input("Please list output file:\n")
@@ -74,7 +78,9 @@ def getLength(start,end):
     i = max(end[1],start[1])
     j = min(end[1],start[1])
     length = 0
-    if start[0] < end[0]:
+    if (end[0] == 0 and end[1] == 0):
+        length = start[0] + start[1]
+    elif start[0] < end[0]:
         length = (end[0] - start[0]) + i-j
     elif start[0] > end[0]:
         length = (start[0] - (end[0] + shelfwidth)) + i-j
@@ -98,8 +104,8 @@ def displayPath(route,items):
         path += " pick up item %s" % items[i]
         path += " at "+ str(itemdict[items[i]]) + "\n"
 
-    path += "From " + str(route[-1])
-    path += ", go to (%s,%s)" % (route[-1][0],endPoint[1])
+    path += "From " + str(location)
+    path += ", go to (%s,%s)" % (location[0],endPoint[1])
     path += ", then go to (%s,%s)" % (endPoint[0],endPoint[1])
     return path
 
@@ -118,7 +124,7 @@ def default(order):
     return distance
 
 # a single iteration in greedy algorithm
-def single(source,orderlist):
+def greedyiteration(source,orderlist):
     distance = 0
     optimizedList = []
     while(len(orderlist)>0):
@@ -147,20 +153,20 @@ def greedy(order):
     for x in range(len(orderlist)):
 #    for x in range(10):
         item = orderlist[x]
-        newlist = orderlist[:]
-        newlist.remove(item)
-        i,j = single(itemdict[item],newlist)
+        newlist = copy.deepcopy(orderlist)
+        del newlist[x]
+        i,j = greedyiteration(itemdict[item],newlist)
         i += getLength(source,itemdict[item])
         distances[i]=item
         optimizedLists[item] = j
     distance = min(distances)
-    optimizedList = optimizedLists[distances[distance]]
+    optimizedList = [distances[distance]] + optimizedLists[distances[distance]]
     e1 = time.time()
     print "time for processing order: " + str(e1-s1)
     return distance,optimizedList
 
 def lowerbound(orderlist):
-    mylist = orderlist[:]
+    mylist = copy.deepcopy(orderlist)
     v = [startingPoint]
     distance = 0
     while (len(orderlist)!=0):
@@ -214,7 +220,9 @@ def bbiteration(matrix,src,des):
     reduced,c = reduceM(matrix)
     return reduced,c
 
+# branch and bound algorithm
 def bb(orderlist):
+    # initialize the matrix
     pointlist = [startingPoint] + [itemdict[x] for x in orderlist]
     distances = [[inf]]*len(pointlist)
     for i in range(len(pointlist)):
@@ -225,32 +233,32 @@ def bb(orderlist):
             else:
                 distance[j] = inf
         distances[i] = distance
+    # first reduction
     reduced,lb = reduceM(distances)
+    #set source
     src = 0
-    indexlist = range(1,len(reduced)-1)
+    indexlist = range(1,len(reduced))
     newMatrix = copy.deepcopy(reduced)
     orders = []
-    while len(indexlist)!=0:
+    # get all the items
+    while len(indexlist)>0:
         results = {}
         for i in indexlist:
             temp = newMatrix[src][i]
-
             tempM = copy.deepcopy(newMatrix)
-
             newM,c = bbiteration(tempM,src,i)
-
-            results[c+lb+temp] = [newM,i]
-
+            if (c+lb+temp) in results:
+                continue
+            else:
+                results[c+lb+temp] = [newM,i]
         c = min(results)
         lb = c
         newMatrix = results[c][0]
         src = results[c][1]
         orders.append(src)
         indexlist.remove(src)
-
-    lb += newMatrix[src][len(reduced)-1]
     optimizedList = [orderlist[i-1] for i in orders]
-    return lb,optimizedList
+    # add the endpint
 
 # compare time and distance of default list and optimized list
 def compareOrder():
@@ -275,50 +283,54 @@ def compareOrder():
         f.write(str(defaultdistance))
 
         # lower bound
-        lblist = orderdict[order][:]
+        lblist = copy.deepcopy(orderdict[order])
         lbdistance = lowerbound(lblist)
 
         f.write("\n##Lower Bound Distance##\n")
         f.write(str(lbdistance))
 
+        distance = 0
         #branch and bound
-        bblist = orderdict[order][:]
-        bbdistance,optimizedList = bb(bblist)
+        if algs == "B" or algs =="b":
+            bblist = copy.deepcopy(orderdict[order])
+            distance,optimizedList = bb(bblist)
         # write to file
-        f.write("\n##BB Algs Optimized Parts Order##\n")
-        map(lambda x:f.write(str(x)+" "),optimizedList)
-        f.write("\n##Optimized Path##\n")
-        route = [startingPoint]+map(lambda x: itemdict[x], optimizedList)
-        f.write(displayPath(route,optimizedList))
-        f.write("\n##Optimized Parts Total Distance##\n")
-        f.write(str(bbdistance))
-
+            f.write("\n##BB Algs Optimized Parts Order##\n")
+            map(lambda x:f.write(str(x)+" "),optimizedList)
+            f.write("\n##Optimized Path##\n")
+            route = [startingPoint]+map(lambda x: itemdict[x], optimizedList)
+            f.write(displayPath(route,optimizedList))
+            f.write("\n##Optimized Parts Total Distance##\n")
+            f.write(str(distance))
 
         # grab item in an optimized order(grab the nearest item).
-        distance,optimizedList = greedy(order)
-        # write to file
-        f.write("\n##Greedy Optimized Parts Order##\n")
-        map(lambda x:f.write(str(x)+" "),optimizedList)
-        f.write("\n##Optimized Path##\n")
-        route = [startingPoint]+map(lambda x: itemdict[x], optimizedList)
-        f.write(displayPath(route,optimizedList))
-        f.write("\n##Optimized Parts Total Distance##\n")
-        f.write(str(distance))
+        if algs == "b" or algs =="g":
+            distance,optimizedList = greedy(order)
+            # write to file
+            f.write("\n##Greedy Optimized Parts Order##\n")
+            map(lambda x:f.write(str(x)+" "),optimizedList)
+            f.write("\n##Optimized Path##\n")
+            route = [startingPoint]+map(lambda x: itemdict[x], optimizedList)
+            f.write(displayPath(route,optimizedList))
+            f.write("\n##Optimized Parts Total Distance##\n")
+            f.write(str(distance))
+
         print ("%s order(s) processed" % (order+1))
-        #if defaultdistance < distance:
-        #    print "!!!!!!!!!!!"
+
+        if lbdistance > distance:
+            print "smaller than lowerbound! Check! "
+            print order
+        if distance > defaultdistance:
+            over += 1
         xxx =max(xxx,(distance-lbdistance))
         yyy =min(yyy,(distance-lbdistance))
-
-        if bbdistance > distance:
-            over +=1
     print over
     f.close()
     print "max larger than lower bound: " +str(xxx)
     print "min larger than lower bound: " +str(yyy)
 
 def main():
-    init()
+    #init()
     s = time.time()
     itemdict = getItem()
     orderdict = getOrder()
