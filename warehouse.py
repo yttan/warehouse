@@ -13,7 +13,7 @@ orderdict = {}
 startingPoint = (0,0)
 endPoint = (0,0)
 #orderfile = "warehouse-orders-v01.csv"
-orderfile = "10.csv"
+orderfile = "21.csv"
 outputFile = "output.txt"
 userPickedItem = []
 algs = "b"
@@ -78,8 +78,8 @@ def getLength(start,end):
     i = max(end[1],start[1])
     j = min(end[1],start[1])
     length = 0
-    if (end[0] == 0 and end[1] == 0):
-        length = start[0] + start[1]
+    if (end[0] == endPoint[0] and end[1] == endPoint[1]):
+        length = abs(start[0]-end[0]) + abs(start[1]-end[1])
     elif start[0] < end[0]:
         length = (end[0] - start[0]) + i-j
     elif start[0] > end[0]:
@@ -87,7 +87,6 @@ def getLength(start,end):
     else:
         length = i-j
     return length
-
 
 def displayPath(route,items):
     path = ''
@@ -220,23 +219,26 @@ def bbiteration(matrix,src,des):
     reduced,c = reduceM(matrix)
     return reduced,c
 
+
 def minkey(mydict):
     key=0
     value=inf
-    for k in mydict:
-        if value > mydict[k]:
-            value = mydict[k]
+    for k,v in mydict.items():
+        value = min(v,value)
+        if value == v:
             key = k
     return key
+
 
 def maxfinishedkey(mydict):
     mylength = 0
     mykey = 0
-    for k in mydict:
-        if mylength < len(mydict[k]):
-            mylength = len(mydict[k])
+    for k,v in mydict.items():
+        mylength = max(mylength,len(v))
+        if len(v) == mylength:
             mykey = k
     return mykey
+
 # branch and bound algorithm
 def bb(orderlist):
     # initialize the matrix
@@ -334,6 +336,11 @@ def compareOrder():
             for point in range(len(routelist)-1):
                 if routelist[point][0]>routelist[point+1][0]:
                     distance+=1
+            if startingPoint != endPoint:
+                if itemdict[optimizedList[-1]][0] >= itemdict[optimizedList[-2]][0]:
+                    distance = distance - getLength(itemdict[optimizedList[-1]],startingPoint) + getLength(itemdict[optimizedList[-1]],endPoint)
+                else:
+                    distance = distance - getLength((itemdict[optimizedList[-1]][0]+1,itemdict[optimizedList[-1]][1]),startingPoint) + getLength((itemdict[optimizedList[-1]][0]+1,itemdict[optimizedList[-1]][1]),endPoint)
         # write to file
             f.write("\n##BB Algs Optimized Parts Order##\n")
             map(lambda x:f.write(str(x)+" "),optimizedList)
@@ -344,7 +351,7 @@ def compareOrder():
             f.write(str(distance))
 
         # grab item in an optimized order(grab the nearest item).
-        if algs == "b" or algs =="g":
+        if algs == "G" or algs =="g":
             distance,optimizedList = greedy(order)
             # write to file
             f.write("\n##Greedy Optimized Parts Order##\n")
@@ -368,7 +375,7 @@ def compareOrder():
     print "min larger than lower bound: " +str(yyy)
 
 def main():
-    #init()
+    init()
     s = time.time()
     itemdict = getItem()
     orderdict = getOrder()
