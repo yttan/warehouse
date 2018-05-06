@@ -12,8 +12,8 @@ itemdict = {}
 orderdict = {}
 startingPoint = (0,0)
 endPoint = (0,0)
-orderfile = "warehouse-orders-v01.csv"
-#orderfile = "21.csv"
+#orderfile = "warehouse-orders-v01.csv"
+orderfile = "1.csv"
 outputFile = "output.txt"
 userPickedItem = []
 algs = "b"
@@ -220,6 +220,24 @@ def bbiteration(matrix,src,des):
     reduced,c = reduceM(matrix)
     return reduced,c
 
+def minkey(mydict):
+    key=0
+    value=inf
+    for k,v in mydict.items():
+        value = min(v,value)
+        if value == v:
+            key = k
+    return key
+
+def maxfinishedkey(mydict):
+    mylength = 0
+    mykey = 0
+    for k,v in mydict.items():
+        mylength = max(mylength,len(v))
+        if len(v) == mylength:
+            mykey = k
+    return mykey
+
 # branch and bound algorithm
 def bb(orderlist):
     # initialize the matrix
@@ -239,26 +257,48 @@ def bb(orderlist):
     src = 0
     indexlist = range(1,len(reduced))
     newMatrix = copy.deepcopy(reduced)
-    orders = []
-    # get all the items
-    while len(indexlist)>0:
-        results = {}
-        for i in indexlist:
-            temp = newMatrix[src][i]
-            tempM = copy.deepcopy(newMatrix)
-            newM,c = bbiteration(tempM,src,i)
-            if (c+lb+temp) in results:
-                continue
-            else:
-                results[c+lb+temp] = [newM,i]
-        c = min(results)
-        lb = c
-        newMatrix = results[c][0]
-        src = results[c][1]
-        orders.append(src)
-        indexlist.remove(src)
-    optimizedList = [orderlist[i-1] for i in orders]
-    # add the endpint
+
+    costdict = {}
+    ordersd = {}
+    matrixdict = {}
+    totalkeys = 0
+
+    for j in indexlist:
+        temp = newMatrix[src][j]
+        tempM = copy.deepcopy(newMatrix)
+        newM,c = bbiteration(tempM,src,j)
+        totalkeys +=1
+        costdict[totalkeys] = c+lb+temp
+        matrixdict[totalkeys] = newM
+        ordersd[totalkeys] = [j]
+    while max(map(lambda x:len(x),ordersd.values())) < len(indexlist) or costdict[maxfinishedkey(ordersd)] > min(costdict.values()):
+        mykey = minkey(costdict)
+        mylb = costdict[mykey]
+        myMatrix = matrixdict[mykey]
+        myorders = ordersd[mykey]
+        src = myorders[-1]
+        myresults = {}
+        for j in [x for x in indexlist if x not in myorders]:
+            temporders = copy.deepcopy(myorders)
+            temp = myMatrix[src][j]
+            tempM = copy.deepcopy(myMatrix)
+            newM,c = bbiteration(tempM,src,j)
+            totalkeys +=1
+            costdict[totalkeys] = c+mylb+temp
+            matrixdict[totalkeys] = newM
+            ordersd[totalkeys] = temporders + [j]
+        del costdict[mykey]
+        del ordersd[mykey]
+        del matrixdict[mykey]
+    mykey = 0
+    for k,itemorders in ordersd.items():
+        if len(itemorders) == len(indexlist):
+            mykey = k
+    finalindexlist = ordersd[mykey]
+    optimizedList = []
+    for i in finalindexlist:
+        optimizedList.append(orderlist[i-1])
+    return costdict[mykey],optimizedList
 
 # compare time and distance of default list and optimized list
 def compareOrder():
@@ -288,12 +328,16 @@ def compareOrder():
 
         f.write("\n##Lower Bound Distance##\n")
         f.write(str(lbdistance))
-
-        distance = 0
+        bbdistance = 0
+        gdistance = 0
         #branch and bound
         if algs == "B" or algs =="b":
             bblist = copy.deepcopy(orderdict[order])
-            distance,optimizedList = bb(bblist)
+            bbdistance,optimizedList = bb(bblist)
+            routelist = [startingPoint] + [itemdict[x] for x in optimizedList]
+            for point in range(len(routelist)-1):
+                if routelist[point]>routelist[point+1]:
+                    bbdistance+=1
         # write to file
             f.write("\n##BB Algs Optimized Parts Order##\n")
             map(lambda x:f.write(str(x)+" "),optimizedList)
@@ -301,11 +345,11 @@ def compareOrder():
             route = [startingPoint]+map(lambda x: itemdict[x], optimizedList)
             f.write(displayPath(route,optimizedList))
             f.write("\n##Optimized Parts Total Distance##\n")
-            f.write(str(distance))
+            f.write(str(bbdistance))
 
         # grab item in an optimized order(grab the nearest item).
         if algs == "b" or algs =="g":
-            distance,optimizedList = greedy(order)
+            gdistance,optimizedList = greedy(order)
             # write to file
             f.write("\n##Greedy Optimized Parts Order##\n")
             map(lambda x:f.write(str(x)+" "),optimizedList)
@@ -313,17 +357,20 @@ def compareOrder():
             route = [startingPoint]+map(lambda x: itemdict[x], optimizedList)
             f.write(displayPath(route,optimizedList))
             f.write("\n##Optimized Parts Total Distance##\n")
-            f.write(str(distance))
+            f.write(str(gdistance))
 
         print ("%s order(s) processed" % (order+1))
 
-        if lbdistance > distance:
-            print "smaller than lowerbound! Check! "
+        if lbdistance > bbdistance:
+            print "bb smaller than lowerbound! Check! "
             print order
-        if distance > defaultdistance:
+        if lbdistance > gdistance:
+            print "g smaller than lowerbound! Check! "
+            print order
+        if bbdistance > defaultdistance:
             over += 1
-        xxx =max(xxx,(distance-lbdistance))
-        yyy =min(yyy,(distance-lbdistance))
+        xxx =max(xxx,(bbdistance-lbdistance))
+        yyy =min(yyy,(bbdistance-lbdistance))
     print over
     f.close()
     print "max larger than lower bound: " +str(xxx)
