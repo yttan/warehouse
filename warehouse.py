@@ -13,7 +13,7 @@ orderdict = {}
 startingPoint = (0,0)
 endPoint = (0,0)
 #orderfile = "warehouse-orders-v01.csv"
-orderfile = "1.csv"
+orderfile = "10.csv"
 outputFile = "output.txt"
 userPickedItem = []
 algs = "b"
@@ -223,21 +223,20 @@ def bbiteration(matrix,src,des):
 def minkey(mydict):
     key=0
     value=inf
-    for k,v in mydict.items():
-        value = min(v,value)
-        if value == v:
+    for k in mydict:
+        if value > mydict[k]:
+            value = mydict[k]
             key = k
     return key
 
 def maxfinishedkey(mydict):
     mylength = 0
     mykey = 0
-    for k,v in mydict.items():
-        mylength = max(mylength,len(v))
-        if len(v) == mylength:
+    for k in mydict:
+        if mylength < len(mydict[k]):
+            mylength = len(mydict[k])
             mykey = k
     return mykey
-
 # branch and bound algorithm
 def bb(orderlist):
     # initialize the matrix
@@ -257,7 +256,6 @@ def bb(orderlist):
     src = 0
     indexlist = range(1,len(reduced))
     newMatrix = copy.deepcopy(reduced)
-
     costdict = {}
     ordersd = {}
     matrixdict = {}
@@ -291,8 +289,8 @@ def bb(orderlist):
         del ordersd[mykey]
         del matrixdict[mykey]
     mykey = 0
-    for k,itemorders in ordersd.items():
-        if len(itemorders) == len(indexlist):
+    for k in ordersd:
+        if len(ordersd[k]) == len(indexlist):
             mykey = k
     finalindexlist = ordersd[mykey]
     optimizedList = []
@@ -305,7 +303,6 @@ def compareOrder():
     f = open(outputFile,'w')
     xxx = 0
     yyy = 999
-    over = 0
     for order in range(len(orderdict)):
         f.write("\n====================================")
         f.write("\n##Order Number##\n")
@@ -328,16 +325,15 @@ def compareOrder():
 
         f.write("\n##Lower Bound Distance##\n")
         f.write(str(lbdistance))
-        bbdistance = 0
-        gdistance = 0
+        distance = 0
         #branch and bound
         if algs == "B" or algs =="b":
             bblist = copy.deepcopy(orderdict[order])
-            bbdistance,optimizedList = bb(bblist)
+            distance,optimizedList = bb(bblist)
             routelist = [startingPoint] + [itemdict[x] for x in optimizedList]
             for point in range(len(routelist)-1):
-                if routelist[point]>routelist[point+1]:
-                    bbdistance+=1
+                if routelist[point][0]>routelist[point+1][0]:
+                    distance+=1
         # write to file
             f.write("\n##BB Algs Optimized Parts Order##\n")
             map(lambda x:f.write(str(x)+" "),optimizedList)
@@ -345,11 +341,11 @@ def compareOrder():
             route = [startingPoint]+map(lambda x: itemdict[x], optimizedList)
             f.write(displayPath(route,optimizedList))
             f.write("\n##Optimized Parts Total Distance##\n")
-            f.write(str(bbdistance))
+            f.write(str(distance))
 
         # grab item in an optimized order(grab the nearest item).
         if algs == "b" or algs =="g":
-            gdistance,optimizedList = greedy(order)
+            distance,optimizedList = greedy(order)
             # write to file
             f.write("\n##Greedy Optimized Parts Order##\n")
             map(lambda x:f.write(str(x)+" "),optimizedList)
@@ -357,21 +353,16 @@ def compareOrder():
             route = [startingPoint]+map(lambda x: itemdict[x], optimizedList)
             f.write(displayPath(route,optimizedList))
             f.write("\n##Optimized Parts Total Distance##\n")
-            f.write(str(gdistance))
+            f.write(str(distance))
 
         print ("%s order(s) processed" % (order+1))
 
-        if lbdistance > bbdistance:
-            print "bb smaller than lowerbound! Check! "
+
+        if lbdistance > distance:
+            print "smaller than lowerbound! Check! "
             print order
-        if lbdistance > gdistance:
-            print "g smaller than lowerbound! Check! "
-            print order
-        if bbdistance > defaultdistance:
-            over += 1
-        xxx =max(xxx,(bbdistance-lbdistance))
-        yyy =min(yyy,(bbdistance-lbdistance))
-    print over
+        xxx =max(xxx,(distance-lbdistance))
+        yyy =min(yyy,(distance-lbdistance))
     f.close()
     print "max larger than lower bound: " +str(xxx)
     print "min larger than lower bound: " +str(yyy)
@@ -386,5 +377,4 @@ def main():
     compareOrder()
 
 if __name__ == '__main__':
-    #print bbiteration([[9999964,8,6,0,2,0],[3,9999982,0,2,0,2],[0,0,9999989,0,2,0],[0,8,6,9999999,2,0],[1,5,6,0,9999998,0],[0,8,6,0,2,9999999]],0,1)
     main()
