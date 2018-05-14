@@ -13,10 +13,11 @@ orderdict = {}
 startingPoint = (0,0)
 endPoint = (0,0)
 #orderfile = "warehouse-orders-v01.csv"
-orderfile = "21.csv"
+orderfile = "1.csv"
 outputFile = "output.txt"
 userPickedItem = []
 algs = "b"
+keythreshold = 30000
 def init():
     global startingPoint
     global endPoint
@@ -147,7 +148,6 @@ def greedy(order):
     orderlist = orderdict[order]
     distances = {}
     optimizedLists = {}
-
     s1 = time.time()
     for x in range(len(orderlist)):
 #    for x in range(10):
@@ -179,8 +179,8 @@ def lowerbound(orderlist):
         distance += min(distances)
     #distance += min(map(lambda x: getLength(startingPoint,itemdict[x]),origin))
     distance += min(map(lambda x: getLength(itemdict[x],endPoint), mylist))
-
     return distance
+
 def reduceM(matrix):
     lb = 0
     reduced = []
@@ -219,7 +219,6 @@ def bbiteration(matrix,src,des):
     reduced,c = reduceM(matrix)
     return reduced,c
 
-
 def minkey(mydict):
     key=0
     value=inf
@@ -228,6 +227,15 @@ def minkey(mydict):
         if value == v:
             key = k
     return key
+
+def longestlist(mydict):
+    mylist = []
+    key = 0
+    for k in mydict:
+        if len(mydict[k]) > len(mylist):
+            mylist = mydict[k]
+            key = k  
+    return key,mylist
 
 
 def maxfinishedkey(mydict):
@@ -253,6 +261,7 @@ def bb(orderlist):
                 distance[j] = inf
         distances[i] = distance
     # first reduction
+    print distances
     reduced,lb = reduceM(distances)
     #set source
     src = 0
@@ -262,7 +271,6 @@ def bb(orderlist):
     ordersd = {}
     matrixdict = {}
     totalkeys = 0
-
     for j in indexlist:
         temp = newMatrix[src][j]
         tempM = copy.deepcopy(newMatrix)
@@ -271,7 +279,9 @@ def bb(orderlist):
         costdict[totalkeys] = c+lb+temp
         matrixdict[totalkeys] = newM
         ordersd[totalkeys] = [j]
+    treef = open('tree.txt','w')
     while max(map(lambda x:len(x),ordersd.values())) < len(indexlist) or costdict[maxfinishedkey(ordersd)] > min(costdict.values()):
+#    while max(map(lambda x:len(x),ordersd.values())) < len(indexlist):
         mykey = minkey(costdict)
         mylb = costdict[mykey]
         myMatrix = matrixdict[mykey]
@@ -290,15 +300,40 @@ def bb(orderlist):
         del costdict[mykey]
         del ordersd[mykey]
         del matrixdict[mykey]
+        #treef.write(str(mykey) + "\n")
+        #treef.write(str(mylb) + "\n")
+        treef.write(str(myorders) + "\n")
+        #treef.write(str(costdict) + "\n")
+        if totalkeys > keythreshold:
+            break
+
     mykey = 0
-    for k in ordersd:
-        if len(ordersd[k]) == len(indexlist):
-            mykey = k
-    finalindexlist = ordersd[mykey]
+    finalindexlist = []
+    bbcost = 0
+    if totalkeys > keythreshold:
+
+        mykey,finalindexlist = longestlist(ordersd)
+        startindex = len(finalindexlist)
+        for leftitem in indexlist:
+            if leftitem not in finalindexlist:
+                finalindexlist.append(leftitem)
+        bbcost += getLength(startingPoint,itemdict[orderlist[finalindexlist[0]-1]]) 
+        for ii in range(0,len(finalindexlist)-1):
+            bbcost += getLength(itemdict[orderlist[finalindexlist[ii]-1]],itemdict[orderlist[finalindexlist[ii+1]-1]])
+        bbcost += getLength(itemdict[orderlist[finalindexlist[-1]-1]],startingPoint)
+    else:
+        for k in ordersd:
+            if len(ordersd[k]) == len(indexlist):
+                mykey = k
+        finalindexlist = ordersd[mykey]
+        bbcost = costdict[mykey]
+        print matrixdict[mykey]
     optimizedList = []
+    treef.write(str(finalindexlist) + "\n")
+    treef.close()
     for i in finalindexlist:
         optimizedList.append(orderlist[i-1])
-    return costdict[mykey],optimizedList
+    return bbcost,optimizedList
 
 # compare time and distance of default list and optimized list
 def compareOrder():
@@ -330,6 +365,7 @@ def compareOrder():
         distance = 0
         #branch and bound
         if algs == "B" or algs =="b":
+            bbstart = time.time()
             bblist = copy.deepcopy(orderdict[order])
             distance,optimizedList = bb(bblist)
             routelist = [startingPoint] + [itemdict[x] for x in optimizedList]
@@ -342,6 +378,7 @@ def compareOrder():
                 else:
                     distance = distance - getLength((itemdict[optimizedList[-1]][0]+1,itemdict[optimizedList[-1]][1]),startingPoint) + getLength((itemdict[optimizedList[-1]][0]+1,itemdict[optimizedList[-1]][1]),endPoint)
         # write to file
+            print "branch and bound time: " + str(time.time()-bbstart)
             f.write("\n##BB Algs Optimized Parts Order##\n")
             map(lambda x:f.write(str(x)+" "),optimizedList)
             f.write("\n##Optimized Path##\n")
