@@ -10,14 +10,17 @@ width = pathwidth +shelfwidth
 itemfile = 'warehouse-grid.csv'
 itemdict = {}
 orderdict = {}
+weightdict = {}
 startingPoint = (0,0)
 endPoint = (0,0)
 #orderfile = "warehouse-orders-v01.csv"
-orderfile = "1.csv"
+orderfile = "5.csv"
 outputFile = "output.txt"
+weightfile = "item-dimensions-tabbed.txt"
 userPickedItem = []
 algs = "b"
 keythreshold = 30000
+effortflag = True
 def init():
     global startingPoint
     global endPoint
@@ -25,6 +28,8 @@ def init():
     global outputFile
     global userPickedItem
     global algs
+    global weightfile
+    global effortflag
     startingPoint = make_tuple(raw_input("Hello User, where is your worker? input like this: (1,1) \n"))
     endPoint = make_tuple(raw_input("What is your worker's end location? input like this: (1,1) \n"))
     orderInput = raw_input("Do you want to specify filename to import an list of orders? (Y or N) \n")
@@ -41,10 +46,20 @@ def init():
         print "invalid input"
         sys.exit()
     outputFile = raw_input("Please list output file:\n")
+    effortf = raw_input("Do you want to show effort for each trip? Y or N\n")
+    if effortf == 'Y' or effortf =='y':
+        effortflag = True
+        weightfile = raw_input("Please list weight file:\n")
+    elif effortf == 'N' or effortf =='n':
+        effortflag = False
+    else:
+        print "invalid input"
+        sys.exit()
 
-# retrieve items and their positions
+# retrieve items and their positions/weights
 def getItem():
     global itemdict
+    global weightdict
     start = time.time()
     with open(itemfile,'r') as csvfile:
         reader = csv.reader(csvfile)
@@ -55,6 +70,11 @@ def getItem():
     for k in itemdict:
         v = itemdict[k]
         itemdict[k] = (width*v[0]+pathwidth,width*v[1]+pathwidth)
+    with open(weightfile,'r') as myweightfile:
+        myweightfile.readline()
+        for line in myweightfile.readlines():
+            weightdata = line.split()
+            weightdict[int(weightdata[0])] = float(weightdata[-1])
 
 # retrieve items we need to gather
 def getOrder():
@@ -88,6 +108,20 @@ def getLength(start,end):
     else:
         length = i-j
     return length
+def showEffort(route,cost):
+    effort = 0
+    start = startingPoint
+    finished = 0
+    missing = []
+    for item in route:
+        finished += getLength(start,itemdict[item])
+        if item in weightdict:
+            effort+=weightdict[item]*(cost-finished)
+        else:
+            missing.append(item)
+            #print str(item) + " weight information not available"
+        start = itemdict[item]
+    return effort,missing
 
 def displayPath(route,items):
     path = ''
@@ -234,7 +268,7 @@ def longestlist(mydict):
     for k in mydict:
         if len(mydict[k]) > len(mylist):
             mylist = mydict[k]
-            key = k  
+            key = k
     return key,mylist
 
 
@@ -261,7 +295,7 @@ def bb(orderlist):
                 distance[j] = inf
         distances[i] = distance
     # first reduction
-    print distances
+    #print distances
     reduced,lb = reduceM(distances)
     #set source
     src = 0
@@ -317,7 +351,7 @@ def bb(orderlist):
         for leftitem in indexlist:
             if leftitem not in finalindexlist:
                 finalindexlist.append(leftitem)
-        bbcost += getLength(startingPoint,itemdict[orderlist[finalindexlist[0]-1]]) 
+        bbcost += getLength(startingPoint,itemdict[orderlist[finalindexlist[0]-1]])
         for ii in range(0,len(finalindexlist)-1):
             bbcost += getLength(itemdict[orderlist[finalindexlist[ii]-1]],itemdict[orderlist[finalindexlist[ii+1]-1]])
         bbcost += getLength(itemdict[orderlist[finalindexlist[-1]-1]],startingPoint)
@@ -327,7 +361,7 @@ def bb(orderlist):
                 mykey = k
         finalindexlist = ordersd[mykey]
         bbcost = costdict[mykey]
-        print matrixdict[mykey]
+        #print matrixdict[mykey]
     optimizedList = []
     treef.write(str(finalindexlist) + "\n")
     treef.close()
@@ -353,15 +387,23 @@ def compareOrder():
 
         # defalut order
         defaultdistance = default(order)
+        dflist = orderdict[order]
+        effort,missing = showEffort(dflist,defaultdistance)
         f.write("\n##Original Parts Total Distance##\n")
         f.write(str(defaultdistance))
+        if effortflag is True:
+            f.write("\nEffort\n")
+            f.write(str(effort)+"\n")
+            if len(missing)!=0:
+                f.write(str(missing) +"weight information missing\n")
+
 
         # lower bound
         lblist = copy.deepcopy(orderdict[order])
         lbdistance = lowerbound(lblist)
 
         f.write("\n##Lower Bound Distance##\n")
-        f.write(str(lbdistance))
+        f.write(str(lbdistance)+"\n")
         distance = 0
         #branch and bound
         if algs == "B" or algs =="b":
@@ -377,6 +419,7 @@ def compareOrder():
                     distance = distance - getLength(itemdict[optimizedList[-1]],startingPoint) + getLength(itemdict[optimizedList[-1]],endPoint)
                 else:
                     distance = distance - getLength((itemdict[optimizedList[-1]][0]+1,itemdict[optimizedList[-1]][1]),startingPoint) + getLength((itemdict[optimizedList[-1]][0]+1,itemdict[optimizedList[-1]][1]),endPoint)
+            effort,missing = showEffort(optimizedList,distance)
         # write to file
             print "branch and bound time: " + str(time.time()-bbstart)
             f.write("\n##BB Algs Optimized Parts Order##\n")
@@ -386,10 +429,16 @@ def compareOrder():
             f.write(displayPath(route,optimizedList))
             f.write("\n##Optimized Parts Total Distance##\n")
             f.write(str(distance))
+            if effortflag is True:
+                f.write("\nEffort\n")
+                f.write(str(effort)+"\n")
+                if len(missing)!=0:
+                    f.write(str(missing) +"weight information missing\n")
 
         # grab item in an optimized order(grab the nearest item).
         if algs == "G" or algs =="g":
             distance,optimizedList = greedy(order)
+            effort,missing = showEffort(optimizedList,distance)
             # write to file
             f.write("\n##Greedy Optimized Parts Order##\n")
             map(lambda x:f.write(str(x)+" "),optimizedList)
@@ -398,6 +447,12 @@ def compareOrder():
             f.write(displayPath(route,optimizedList))
             f.write("\n##Optimized Parts Total Distance##\n")
             f.write(str(distance))
+            if effortflag is True:
+                f.write("\nEffort\n")
+                f.write(str(effort) +"\n")
+                if len(missing)!=0:
+                    f.write(str(missing) +"weight information missing\n")
+
 
         print ("%s order(s) processed" % (order+1))
 
