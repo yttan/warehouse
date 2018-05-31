@@ -21,6 +21,7 @@ userPickedItem = []
 algs = "b"
 keythreshold = 30000
 effortflag = True
+lrflag = 'b'
 def init():
     global startingPoint
     global endPoint
@@ -30,6 +31,7 @@ def init():
     global algs
     global weightfile
     global effortflag
+    global lrdiff
     startingPoint = make_tuple(raw_input("Hello User, where is your worker? input like this: (1,1) \n"))
     endPoint = make_tuple(raw_input("What is your worker's end location? input like this: (1,1) \n"))
     orderInput = raw_input("Do you want to specify filename to import an list of orders? (Y or N) \n")
@@ -55,6 +57,17 @@ def init():
     else:
         print "invalid input"
         sys.exit()
+    lr = raw_input("Calculate for both left and right side or just one side? L(left side) R(right side) B(both sides)\n")
+    if lr == 'L' or lr == 'l':
+        lrdiff = 'l'
+    elif lr == 'B' or lr == 'b':
+        lrdiff = 'b'
+    elif lr == 'R' or lr=='r':
+        lrdiff = 'r'
+    else:
+        print "invalid input"
+        sys.exit()
+
 
 # retrieve items and their positions/weights
 def getItem():
@@ -65,16 +78,16 @@ def getItem():
         reader = csv.reader(csvfile)
         for rows in reader:
             itemdict[int(rows[0])] = (int(float(rows[1])),int(rows[2])) # drop the decimal
-    end = time.time()
-    print "time to put data into memory: " + str(end-start)
-    for k in itemdict:
-        v = itemdict[k]
-        itemdict[k] = (width*v[0]+pathwidth,width*v[1]+pathwidth)
     with open(weightfile,'r') as myweightfile:
         myweightfile.readline()
         for line in myweightfile.readlines():
             weightdata = line.split()
             weightdict[int(weightdata[0])] = float(weightdata[-1])
+    end = time.time()
+    print "time to put data into memory: " + str(end-start)
+    for k in itemdict:
+        v = itemdict[k]
+        itemdict[k] = (width*v[0]+pathwidth,width*v[1]+pathwidth)
 
 # retrieve items we need to gather
 def getOrder():
@@ -96,18 +109,29 @@ def getOrder():
 
 # return the length to go to the next shelf
 def getLength(start,end):
-    i = max(end[1],start[1])
-    j = min(end[1],start[1])
-    length = 0
-    if (end[0] == endPoint[0] and end[1] == endPoint[1]):
+    if lrdiff == 'b':
+        i = max(end[1],start[1])
+        j = min(end[1],start[1])
+        length = 0
+        if (end[0] == endPoint[0] and end[1] == endPoint[1]):
+            length = abs(start[0]-end[0]) + abs(start[1]-end[1])
+        elif start[0] < end[0]:
+            length = (end[0] - start[0]) + i-j
+        elif start[0] > end[0]:
+            length = (start[0] - (end[0] + shelfwidth)) + i-j
+        else:
+            length = i-j
+        return length
+    elif lrdiff == 'l':
         length = abs(start[0]-end[0]) + abs(start[1]-end[1])
-    elif start[0] < end[0]:
-        length = (end[0] - start[0]) + i-j
-    elif start[0] > end[0]:
-        length = (start[0] - (end[0] + shelfwidth)) + i-j
+        return length
     else:
-        length = i-j
-    return length
+        if (start[0] == startingPoint[0] and start[1] == startingPoint[1]):
+            length = abs(start[0]-end[0]) +shelfwidth+ abs(start[1]-end[1])
+        else:
+            length = abs(start[0]-end[0]) + abs(start[1]-end[1])
+        return length
+
 def showEffort(route,cost):
     effort = 0
     start = startingPoint
@@ -127,17 +151,31 @@ def displayPath(route,items):
     path = ''
     location = route[0]
     for i in range(len(route)-1):
-        path += "From " + str(location)
-        path += ", go to (%s,%s)" % (location[0],route[i+1][1])
-        if location[0]<=route[i+1][0]:
+        if lrdiff == 'b':
+            path += "From " + str(location)
+            path += ", go to (%s,%s)" % (location[0],route[i+1][1])
+            if location[0]<=route[i+1][0]:
+                path += ", then go to (%s,%s)" % (route[i+1][0],route[i+1][1])
+                location = (route[i+1][0],route[i+1][1])
+            else:
+                path += ", then go to (%s,%s)" % (route[i+1][0]+shelfwidth,route[i+1][1])
+                location = (route[i+1][0]+shelfwidth,route[i+1][1])
+            path += " pick up item %s" % items[i]
+            path += " at "+ str(itemdict[items[i]]) + "\n"
+        elif lrdiff =='l':
+            path += "From " + str(location)
+            path += ", go to (%s,%s)" % (location[0],route[i+1][1])
             path += ", then go to (%s,%s)" % (route[i+1][0],route[i+1][1])
             location = (route[i+1][0],route[i+1][1])
+            path += " pick up item %s" % items[i]
+            path += " at "+ str(itemdict[items[i]]) + "\n"
         else:
+            path += "From " + str(location)
+            path += ", go to (%s,%s)" % (location[0],route[i+1][1])
             path += ", then go to (%s,%s)" % (route[i+1][0]+shelfwidth,route[i+1][1])
             location = (route[i+1][0]+shelfwidth,route[i+1][1])
-        path += " pick up item %s" % items[i]
-        path += " at "+ str(itemdict[items[i]]) + "\n"
-
+            path += " pick up item %s" % items[i]
+            path += " at "+ str(itemdict[items[i]]) + "\n"
     path += "From " + str(location)
     path += ", go to (%s,%s)" % (location[0],endPoint[1])
     path += ", then go to (%s,%s)" % (endPoint[0],endPoint[1])
