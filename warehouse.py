@@ -3,6 +3,7 @@ import sys
 from ast import literal_eval as make_tuple
 import time
 import copy
+import json
 inf = 9999999
 pathwidth = 1
 shelfwidth = 1
@@ -19,9 +20,9 @@ outputFile = "output.txt"
 weightfile = "item-dimensions-tabbed.txt"
 userPickedItem = []
 algs = "b"
-keythreshold = 30000
+keythreshold = 25000
 effortflag = True
-lrflag = 'b'
+lrdiff = 'b'
 def init():
     global startingPoint
     global endPoint
@@ -146,6 +147,34 @@ def showEffort(route,cost):
             #print str(item) + " weight information not available"
         start = itemdict[item]
     return effort,missing
+
+def GUIdisplay(route,items):
+    path = ''
+    location = route[0]
+    for i in range(len(route)-1):
+        if lrdiff == 'b':
+            path += str(location)+" "
+            path += str((location[0],route[i+1][1]))+" "
+            if location[0]<=route[i+1][0]:
+                path += str((route[i+1][0],route[i+1][1]))+" "
+                location = (route[i+1][0],route[i+1][1])
+            else:
+                path += str((route[i+1][0]+shelfwidth,route[i+1][1]))+" "
+                location = (route[i+1][0]+shelfwidth,route[i+1][1])
+        elif lrdiff =='l':
+            path += str(location)+" "
+            path += str((location[0],route[i+1][1]))+" "
+            path += str((route[i+1][0],route[i+1][1]))+" "
+            location = (route[i+1][0],route[i+1][1])
+        else:
+            path += str(location)+" "
+            path += str((location[0],route[i+1][1]))+" "
+            path += str((route[i+1][0]+shelfwidth,route[i+1][1]))+" "
+            location = (route[i+1][0]+shelfwidth,route[i+1][1])
+    path += str(location)+" "
+    path += str((location[0],endPoint[1]))+" "
+    path += str((endPoint[0],endPoint[1]))
+    return path
 
 def displayPath(route,items):
     path = ''
@@ -407,11 +436,13 @@ def bb(orderlist):
         optimizedList.append(orderlist[i-1])
     return bbcost,optimizedList
 
+
 # compare time and distance of default list and optimized list
 def compareOrder():
     f = open(outputFile,'w')
     xxx = 0
     yyy = 999
+    GUIdict = {}
     for order in range(len(orderdict)):
         f.write("\n====================================")
         f.write("\n##Order Number##\n")
@@ -439,7 +470,6 @@ def compareOrder():
         # lower bound
         lblist = copy.deepcopy(orderdict[order])
         lbdistance = lowerbound(lblist)
-
         f.write("\n##Lower Bound Distance##\n")
         f.write(str(lbdistance)+"\n")
         distance = 0
@@ -472,6 +502,10 @@ def compareOrder():
                 f.write(str(effort)+"\n")
                 if len(missing)!=0:
                     f.write(str(missing) +"weight information missing\n")
+                GUIdict[str(order+1)] = {"path":GUIdisplay(route,optimizedList),"text":displayPath(route,optimizedList),"effort":str(effort)}
+            else:
+                GUIdict[str(order+1)] = {"path":GUIdisplay(route,optimizedList),"text":displayPath(route,optimizedList)}
+
 
         # grab item in an optimized order(grab the nearest item).
         if algs == "G" or algs =="g":
@@ -490,8 +524,12 @@ def compareOrder():
                 f.write(str(effort) +"\n")
                 if len(missing)!=0:
                     f.write(str(missing) +"weight information missing\n")
+                GUIdict[str(order+1)] = {"path":GUIdisplay(route,optimizedList),"text":displayPath(route,optimizedList),"effort":str(effort)}
+            else:
+                GUIdict[str(order+1)] = {"path":GUIdisplay(route,optimizedList),"text":displayPath(route,optimizedList)}
 
-
+        with open('GUI.txt', 'w') as GUIfile:
+            GUIfile.write(json.dumps(GUIdict))
         print ("%s order(s) processed" % (order+1))
 
 
@@ -505,7 +543,7 @@ def compareOrder():
     print "min larger than lower bound: " +str(yyy)
 
 def main():
-    init()
+    #init()
     s = time.time()
     itemdict = getItem()
     orderdict = getOrder()
