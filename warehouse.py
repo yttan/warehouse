@@ -14,13 +14,13 @@ orderdict = {}
 weightdict = {}
 startingPoint = (0,0)
 endPoint = (0,0)
-#orderfile = "warehouse-orders-v01.csv"
-orderfile = "5.csv"
+orderfile = "warehouse-orders-v02-tabbed.txt"
+#orderfile = "5.csv"
 outputFile = "output.txt"
 weightfile = "item-dimensions-tabbed.txt"
 userPickedItem = []
 algs = "b"
-keythreshold = 25000
+keythreshold = 20000
 effortflag = True
 lrdiff = 'b'
 def init():
@@ -148,32 +148,40 @@ def showEffort(route,cost):
         start = itemdict[item]
     return effort,missing
 
+def tuplestr(location):
+    mystr = '('
+    mystr += str(location[0])
+    mystr += ','
+    mystr += str(location[1])
+    mystr += ')'
+    return mystr
+
 def GUIdisplay(route,items):
     path = ''
     location = route[0]
     for i in range(len(route)-1):
         if lrdiff == 'b':
-            path += str(location)+" "
-            path += str((location[0],route[i+1][1]))+" "
+            path += tuplestr(location)+" "
+            path += tuplestr((location[0],route[i+1][1]))+" "
             if location[0]<=route[i+1][0]:
-                path += str((route[i+1][0],route[i+1][1]))+" "
+                path += tuplestr((route[i+1][0],route[i+1][1]))+" "
                 location = (route[i+1][0],route[i+1][1])
             else:
-                path += str((route[i+1][0]+shelfwidth,route[i+1][1]))+" "
+                path += tuplestr((route[i+1][0]+shelfwidth,route[i+1][1]))+" "
                 location = (route[i+1][0]+shelfwidth,route[i+1][1])
         elif lrdiff =='l':
-            path += str(location)+" "
-            path += str((location[0],route[i+1][1]))+" "
-            path += str((route[i+1][0],route[i+1][1]))+" "
+            path += tuplestr(location)+" "
+            path += tuplestr((location[0],route[i+1][1]))+" "
+            path += tuplestr((route[i+1][0],route[i+1][1]))+" "
             location = (route[i+1][0],route[i+1][1])
         else:
-            path += str(location)+" "
-            path += str((location[0],route[i+1][1]))+" "
-            path += str((route[i+1][0]+shelfwidth,route[i+1][1]))+" "
+            path += tuplestr(location)+" "
+            path += tuplestr((location[0],route[i+1][1]))+" "
+            path += tuplestr((route[i+1][0]+shelfwidth,route[i+1][1]))+" "
             location = (route[i+1][0]+shelfwidth,route[i+1][1])
-    path += str(location)+" "
-    path += str((location[0],endPoint[1]))+" "
-    path += str((endPoint[0],endPoint[1]))
+    path += tuplestr(location)+" "
+    path += tuplestr((location[0],endPoint[1]))+" "
+    path += tuplestr((endPoint[0],endPoint[1]))
     return path
 
 def displayPath(route,items):
@@ -380,7 +388,7 @@ def bb(orderlist):
         costdict[totalkeys] = c+lb+temp
         matrixdict[totalkeys] = newM
         ordersd[totalkeys] = [j]
-    treef = open('tree.txt','w')
+    #treef = open('tree.txt','w')
     while max(map(lambda x:len(x),ordersd.values())) < len(indexlist) or costdict[maxfinishedkey(ordersd)] > min(costdict.values()):
 #    while max(map(lambda x:len(x),ordersd.values())) < len(indexlist):
         mykey = minkey(costdict)
@@ -403,7 +411,7 @@ def bb(orderlist):
         del matrixdict[mykey]
         #treef.write(str(mykey) + "\n")
         #treef.write(str(mylb) + "\n")
-        treef.write(str(myorders) + "\n")
+        #treef.write(str(myorders) + "\n")
         #treef.write(str(costdict) + "\n")
         if totalkeys > keythreshold:
             break
@@ -430,8 +438,8 @@ def bb(orderlist):
         bbcost = costdict[mykey]
         #print matrixdict[mykey]
     optimizedList = []
-    treef.write(str(finalindexlist) + "\n")
-    treef.close()
+    #treef.write(str(finalindexlist) + "\n")
+    #treef.close()
     for i in finalindexlist:
         optimizedList.append(orderlist[i-1])
     return bbcost,optimizedList
@@ -500,9 +508,10 @@ def compareOrder():
             if effortflag is True:
                 f.write("\nEffort\n")
                 f.write(str(effort)+"\n")
+                GUIdict[str(order+1)] = {"path":GUIdisplay(route,optimizedList),"text":displayPath(route,optimizedList),"effort":str(effort)}
                 if len(missing)!=0:
                     f.write(str(missing) +"weight information missing\n")
-                GUIdict[str(order+1)] = {"path":GUIdisplay(route,optimizedList),"text":displayPath(route,optimizedList),"effort":str(effort)}
+                    GUIdict[str(order+1)]["effort"] += "\n" + str(missing) +"weight information missing\n"
             else:
                 GUIdict[str(order+1)] = {"path":GUIdisplay(route,optimizedList),"text":displayPath(route,optimizedList)}
 
@@ -522,9 +531,10 @@ def compareOrder():
             if effortflag is True:
                 f.write("\nEffort\n")
                 f.write(str(effort) +"\n")
+                GUIdict[str(order+1)] = {"path":GUIdisplay(route,optimizedList),"text":displayPath(route,optimizedList),"effort":str(effort)}
                 if len(missing)!=0:
                     f.write(str(missing) +"weight information missing\n")
-                GUIdict[str(order+1)] = {"path":GUIdisplay(route,optimizedList),"text":displayPath(route,optimizedList),"effort":str(effort)}
+                    GUIdict[str(order+1)]["effort"] += "\n" + str(missing) +"weight information missing\n"
             else:
                 GUIdict[str(order+1)] = {"path":GUIdisplay(route,optimizedList),"text":displayPath(route,optimizedList)}
 
@@ -543,7 +553,7 @@ def compareOrder():
     print "min larger than lower bound: " +str(yyy)
 
 def main():
-    #init()
+    init()
     s = time.time()
     itemdict = getItem()
     orderdict = getOrder()
